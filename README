@@ -16,3 +16,5 @@ References:
 		https://www.kaggle.com/janiobachmann/s-p-500-simple-forecasting-with-prophet
 	Prophet quick start:
 		https://facebook.github.io/prophet/docs/quick_start.html
+	ARIMA:
+		https://www.analyticsvidhya.com/blog/2016/02/time-series-forecasting-codes-python/
