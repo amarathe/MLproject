@@ -11,7 +11,9 @@ import os
 import numpy as np
 import tensorflow as tf # This code has been tested with TensorFlow 1.6
 import statsmodels.api as sm
-#from fbprophet import Prophet
+
+
+from fbprophet import Prophet
 from scipy import stats
 from pandas.core import datetools
 from keras.models import Sequential
@@ -69,6 +71,82 @@ def processData(data,lb):
         Y.append(data[(i+lb),0])
     return np.array(X),np.array(Y)
 
+def stocks_data_analysis (input_data): 
+    ###############################################################
+    ## Stock Data Analysis (argument: stock data)
+    list_ticker = ['FB', 'AAPL', 'NFLX', 'GOOGL', 'AMZN', 'GM']                   
+    input_data.set_index('Name', inplace=True)
+    amazon = input_data.loc['AMZN']
+    amazon.reset_index(inplace=True)
+    amazon.set_index("date", inplace=True)
+    amazon = amazon.drop("Name", axis=1)
+    
+    facebook = input_data.loc['FB']
+    facebook.reset_index(inplace=True)
+    facebook.set_index("date", inplace=True)
+    facebook = facebook.drop("Name", axis=1)
+    
+    apple = input_data.loc['AAPL']
+    apple.reset_index(inplace=True)
+    apple.set_index("date", inplace=True)
+    apple = apple.drop("Name", axis=1)
+    
+    netflix = input_data.loc['NFLX']
+    netflix.reset_index(inplace=True)
+    netflix.set_index("date", inplace=True)
+    netflix = netflix.drop("Name", axis=1)
+    
+    google = input_data.loc['GOOGL']
+    google.reset_index(inplace=True)    
+    google.set_index("date", inplace=True)
+    google = google.drop("Name", axis=1)
+    
+    rand_stock = input_data.loc[list_ticker[len(list_ticker)-1]]
+    rand_stock.reset_index(inplace=True)    
+    rand_stock.set_index("date", inplace=True)
+    rand_stock = rand_stock.drop("Name", axis=1)
+                          
+    ticker_stocks = pd.concat([facebook, apple,netflix, google, amazon, rand_stock], axis=1,keys=list_ticker)
+    ticker_stocks.columns.names = ['Ticker','Stock Info']
+    ticker_stocks.head()
+    ticker_stocks.reset_index(inplace=True)
+    ticker_stocks.set_index('date')
+    ticker_stocks['date'] = pd.to_datetime(ticker_stocks['date'])
+    ticker_stocks.head()
+    
+    ticker_stocks.xs(key='close',axis=1,level='Stock Info').max()
+    
+    returns = pd.DataFrame()
+    for tick in list_ticker:
+        returns[tick+' Return'] = ticker_stocks[tick]['close'].pct_change()
+    returns.head()
+    DateCol = ticker_stocks['date']
+    returns = pd.concat([returns,DateCol], axis = 1)
+    returns.head()
+    returns.reset_index(inplace=True)
+    returns.set_index("date", inplace=True)
+    returns = returns.drop("index", axis=1)
+    print(returns)
+    
+    import seaborn as sns
+    sns.pairplot(returns[1:])
+    # dates with the lowest returns for each stock
+    LowReturnDates = returns.idxmin()
+    LowReturnDates.head()
+    
+    returns.idxmax()
+    returns.std()
+    
+    import seaborn as sns
+    whitegrid = sns.set_style('whitegrid')
+    plt.savefig("./whitegrid.pdf")
+    plt.figure()
+    heat = sns.heatmap(ticker_stocks.xs(key='close',axis=1,level='Stock Info').corr(),annot=True)
+    plt.savefig('./heatmap.pdf')
+    plt.figure()
+    ## END OF Stock Data ANalysis
+
+
 from statsmodels.tsa.stattools import adfuller
 def test_stationarity(timeseries):
     
@@ -92,11 +170,12 @@ def test_stationarity(timeseries):
         dfoutput['Critical Value (%s)'%key] = value
     print (dfoutput)
     
+
 def runLSTM(ticker, data, epochs):
 
 #   plotTicker(ticker, data)
    #plotTicker("GOOGL", data)
-   data = pd.read_csv("./all_stocks_5yr.csv")
+#   data = pd.read_csv("./all_stocks_5yr.csv")
    stock1 = data[data['Name']== ticker].close
    scl = MinMaxScaler()
    #Scale the data
@@ -104,7 +183,7 @@ def runLSTM(ticker, data, epochs):
    stock1 = stock1.reshape(stock1.shape[0],1)
    stock1 = scl.fit_transform(stock1)
 
-   step = 60
+   step = 5
    X,y = processData(stock1,step)
    split = 0.8
    X_train = X[:int(X.shape[0]*split)]
@@ -139,6 +218,10 @@ def runLSTM(ticker, data, epochs):
    Xt = model.predict(X_test)
    plt.plot(scl.inverse_transform(y_test.reshape(-1,1)))
    plt.plot(scl.inverse_transform(Xt))
+   plt.legend(['Actual','Model'])
+   plt.xlabel('Days (shifted)')
+   plt.ylabel('Stock Price')
+   plt.title('AMZN: Train 80%, Test 20%')
    plt.show() 
 
 def runprophet(df, ticker):
@@ -162,6 +245,7 @@ def runprophet(df, ticker):
    # <br><br>
    
    # Import Libraries
+   from fbprophet import Prophet
    # Statsmodels widely known for forecasting than Prophet
    init_notebook_mode(connected=True)
    warnings.filterwarnings("ignore")
@@ -552,9 +636,85 @@ def runARIMA(df, ticker):
     #plt.plot(moving_avg, label='movavg', color='magenta')
     #plt.show()
 
-################################################################
-stockdata = preprocessdata()
+def runLSTM_FANG(ticker_array,test_ticker,df,n_epochs):
+    
+    test_stock = df[df['Name']==test_ticker].close
+    #Build the model
+    model = Sequential()
+    step = 5
+    model.add(LSTM(256,input_shape=(step,1)))
+    model.add(Dense(1))
+    model.compile(optimizer='adam',loss='mse')
+    
+    #plotTicker("AAPL", df)
+    #plotTicker("GOOGL", df)
+
+#    stock2 = df[df['Name']=='FB'].close
+#    stock3 = df[df['Name']=='AAPL'].close
+#    stock4 = df[df['Name']=='NFLX'].close
+#    stock5 = df[df['Name']=='GOOG'].close
+    
+    for i in range(len(ticker_array)):
+        ticker = ticker_array[i]
+        print ('Train using ', ticker)
+        trainstock = df[df['Name']==ticker].close             
+        scl = MinMaxScaler()
+        #Scale the data
+        trainstock= np.array(trainstock)
+        trainstock = trainstock.reshape(trainstock.shape[0],1)
+        trainstock = scl.fit_transform(trainstock)
+        
+        test_stock= np.array(test_stock)
+        test_stock = test_stock.reshape(test_stock.shape[0],1)
+        test_stock = scl.fit_transform(test_stock)
+        
+        X,y = processData(trainstock,step)
+        X_test_stock,y_test_stock = processData(test_stock,step)
+        train_split = 1.00
+        #X_train,X_test = X[:int(X.shape[0]*0.80)],X[int(X.shape[0]*0.80):]
+        X_train = X[:int(X.shape[0]*train_split)]
+        y_train = y[:int(y.shape[0]*train_split)]
+    
+        test_split = 1.00
+        X_test_stock = X_test_stock[:int(X_test_stock.shape[0]*test_split)]
+        y_test_stock = y_test_stock[:int(y_test_stock.shape[0]*test_split)]
+    
+        X_train = X_train.reshape((X_train.shape[0],X_train.shape[1],1))   
+        X_test_stock = X_test_stock.reshape((X_test_stock.shape[0],X_test_stock.shape[1],1))
+        history = model.fit(X_train,y_train,epochs=n_epochs,validation_data=(X_test_stock,y_test_stock),shuffle=False)
+        
+        plt.plot(history.history['loss'])
+        plt.plot(history.history['val_loss'])
+        plt.xlabel('epochs')
+        plt.ylabel('loss')
+        plt.legend(['train','validation'])
+        plt.show() 
+        #We see this is pretty jumpy but we will keep it at 300 epochs. With more data, it should smooth out the loss
+        #Lets look at the fit
+        Xt = model.predict(X_test_stock)
+        plt.plot(scl.inverse_transform(y_test_stock.reshape(-1,1)))
+        plt.plot(scl.inverse_transform(Xt))
+        plt.legend(['Actual','Model'])
+        plt.xlabel('Day')
+        plt.ylabel('Stock Price')
+        plt.title('Train with FB/AAPL/NFLX/GOOGL')
+        plt.show() 
+
+
+# Preprocess data to remove null values from 5year stocks data 
+stockdata = preprocessdata() 
+# Perform data analysis on stocks chosen:
+stocks_data_analysis(stockdata) 
+
 #print ("DEBUG: stockdata size:", stockdata.shape[0])
-runLSTM("AMZN", stockdata, 30)
+runLSTM("AMZN", stockdata, 50) #(ticker, data, epochs)
 runprophet(stockdata, "AMZN")
+
+##############################################################
+# Analysis on Train with FB/AAPL/NFLX/GOOGL and test with AMZN
+list_tickers = ['FB', 'AAPL', 'NFLX', 'GOOGL']
+runLSTM_FANG(list_tickers,"AMZN",stockdata,50)
+##############################################################
+
 runARIMA(stockdata,"AMZN")
+
