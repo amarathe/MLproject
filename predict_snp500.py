@@ -162,29 +162,17 @@ def runprophet(df, ticker):
    
    # Simple plotting of Amazon Stock Price
    # First Subplot
-   f, (ax1, ax2) = plt.subplots(1, 2, figsize=(14,5))
-   ax1.plot(amzn_df["date"], amzn_df["close"])
-   ax1.set_xlabel("Date", fontsize=12)
-   ax1.set_ylabel("Stock Price")
-   ax1.set_title("Amazon Close Price History")
-   
-   # Second Subplot
-   ax1.plot(amzn_df["date"], amzn_df["high"], color="green")
-   ax1.set_xlabel("Date", fontsize=12)
-   ax1.set_ylabel("Stock Price")
-   ax1.set_title("Amazon High Price History")
-   
-   # Third Subplot
-   ax1.plot(amzn_df["date"], amzn_df["low"], color="red")
-   ax1.set_xlabel("Date", fontsize=12)
-   ax1.set_ylabel("Stock Price")
-   ax1.set_title("Amazon Low Price History")
+   f, (ax0, ax1) = plt.subplots(1, 2, figsize=(14,5))
+   ax0.plot(amzn_df["date"], amzn_df["close"])
+   ax0.set_xlabel("Date", fontsize=12)
+   ax0.set_ylabel("Stock Price")
+   ax0.set_title("Amazon Close Price History")
    
    # Fourth Subplot
-   ax2.plot(amzn_df["date"], amzn_df["volume"], color="orange")
-   ax2.set_xlabel("Date", fontsize=12)
-   ax2.set_ylabel("Stock Price")
-   ax2.set_title("Amazon's Volume History")
+   ax1.plot(amzn_df["date"], amzn_df["volume"], color="orange")
+   ax1.set_xlabel("Date", fontsize=12)
+   ax1.set_ylabel("Stock Price")
+   ax1.set_title("Amazon's Volume History")
    plt.show()
    
    # ### Prophet Introduction:
@@ -202,8 +190,11 @@ def runprophet(df, ticker):
    # Drop the columns
    ph_df = amzn_df.drop(['open', 'high', 'low','volume', 'Ticks'], axis=1)
    ph_df.rename(columns={'close': 'y', 'date': 'ds'}, inplace=True)
+
+   numtotal = int(ph_df.shape[0])
+   numtrain = int(ph_df.shape[0] * 0.99)
+   ph_df_test = ph_df.head(numtrain)
    
-   m = Prophet()
    m.fit(ph_df)
    
    # Create Future dates
@@ -211,7 +202,21 @@ def runprophet(df, ticker):
    
    # Predict Prices
    forecast = m.predict(future_prices)
-   forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail()
+   print ("DEBUG: future prediction: ")
+   print( forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail())
+
+   from fbprophet.diagnostics import cross_validation
+   print ("DEBUG: numtrain:", numtrain)
+   print ("DEBUG: numtotal:", numtotal)
+   #Convert from 5 day weeks to 7 day weeks
+   df_cv = cross_validation(m, initial=str(int(numtrain*7/5))+ ' days', period='10 days', horizon = '10 days')
+   print ("cross-validation:")
+   from fbprophet.diagnostics import performance_metrics
+   df_p = performance_metrics(df_cv)
+   print(df_p.head())
+
+   from fbprophet.plot import plot_cross_validation_metric
+   fig = plot_cross_validation_metric(df_cv, metric='rmse')
    
    import matplotlib.dates as mdates
    
@@ -224,24 +229,25 @@ def runprophet(df, ticker):
    pointing_arrow = dt.datetime(2018, 2, 18)
    pointing_arrow1 = mdates.date2num(pointing_arrow)
    
-   # Learn more Prophet tomorrow and plot the forecast for amazon.
-   fig = m.plot(forecast)
+   # Forecast amazon
+#   fig = m.plot(forecast)
+   fig = m.plot(df_cv)
    ax1 = fig.add_subplot(111)
    ax1.set_title("Amazon Stock Price Forecast", fontsize=16)
    ax1.set_xlabel("Date", fontsize=12)
    ax1.set_ylabel("Close Price", fontsize=12)
    
-   # Forecast initialization arrow
-   ax1.annotate('Forecast \n Initialization', xy=(pointing_arrow1, 1350), xytext=(starting_date1,1700),
-               arrowprops=dict(facecolor='#ff7f50', shrink=0.1),
-               )
+#   # Forecast initialization arrow
+#   ax1.annotate('Forecast \n Initialization', xy=(pointing_arrow1, 1350), xytext=(starting_date1,1700),
+#               arrowprops=dict(facecolor='#ff7f50', shrink=0.1),
+#               )
+#   
+#   # Trend emphasis arrow
+#   ax1.annotate('Upward Trend', xy=(trend_date1, 1225), xytext=(trend_date1,950),
+#               arrowprops=dict(facecolor='#6cff6c', shrink=0.1),
+#               )
    
-   # Trend emphasis arrow
-   ax1.annotate('Upward Trend', xy=(trend_date1, 1225), xytext=(trend_date1,950),
-               arrowprops=dict(facecolor='#6cff6c', shrink=0.1),
-               )
-   
-   ax1.axhline(y=1260, color='b', linestyle='-')
+#   ax1.axhline(y=1260, color='b', linestyle='-')
    
    plt.show()
    
@@ -249,6 +255,7 @@ def runprophet(df, ticker):
    plt.show()
    
    # Monthly Data Predictions
+   print ("DEBUG: Monthly Predictions")
    m = Prophet(changepoint_prior_scale=0.01).fit(ph_df)
    future = m.make_future_dataframe(periods=12, freq='M')
    fcst = m.predict(future)
@@ -257,7 +264,6 @@ def runprophet(df, ticker):
    
    plt.show()
    
-   
    # #### Trends:
    # <ul> 
    # <li>Amazon's stock price is showing signs of upper trend yearly. </li>
@@ -265,119 +271,12 @@ def runprophet(df, ticker):
    # <li>There is no weekly trend for stock prices. </li>
    # </ul>
    
-
-   
    fig = m.plot_components(fcst)
-   plt.show()
-   
-   # ### Stocks more Susceptible to Seasonality Trends:
-   # ---> Description Later:
-   # American Airlines
-   aal_df = df.loc[df["Ticks"] == "AAL"]
-   
-   aal_df.loc[:, 'date'] = pd.to_datetime(aal_df.loc[:,'date'], format="%Y/%m/%d")
-   
-   aal_df.info()
-   
-   f, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18,5))
-   
-   aal_df["close_log"] = np.log(aal_df["close"])
-   aal_df["high_log"] = np.log(aal_df["high"])
-   aal_df["low_log"] = np.log(aal_df["low"])
-   
-   ax1.plot(aal_df["date"], aal_df["close_log"])
-   ax1.set_title("Normalized Close Price")
-   ax2.plot(aal_df["date"], aal_df["high_log"], color="g")
-   ax2.set_title("Normalized High Price")
-   ax3.plot(aal_df["date"], aal_df["low_log"], color="r")
-   ax3.set_title("Normalized Low Price")
-   plt.show()
-   
-   aal_df['std_close'] = aal_df["close"].rolling(5).std()
-   aal_df['mean_close'] = aal_df["close"].rolling(5).mean()
-   aal_df['twenty_mean_close'] = aal_df["close"].rolling(20).mean()
-   
-   f, (std_ax, avg_ax) = plt.subplots(1, 2, figsize=(18,5))
-   
-   std_ax.plot(aal_df["date"], aal_df["std_close"], color="r", label="Standard Deviation")
-   std_ax.legend(loc="upper left")
-   std_ax.set_title("Standard Deviation American Airlines \n (AAL)")
-   
-   avg_ax.plot(aal_df["date"], aal_df["mean_close"], color="g", label="5-day MA")
-   avg_ax.plot(aal_df["date"], aal_df["twenty_mean_close"], color="k", label="20-day MA")
-   avg_ax.legend(loc="upper left")
-   avg_ax.set_title("5 Day Average AAL \n Closing Price")
-   plt.show()
-   
-   m = Prophet()
-   
-   # Drop the columns
-   ph_df = aal_df.drop(['open', 'high', 'low','volume', 'Ticks', 'close_log', 'high_log', 'mean_close', 'twenty_mean_close', 'low_log', 'std_close'], axis=1)
-   ph_df.rename(columns={'close': 'y', 'date': 'ds'}, inplace=True)
-   
-   m.fit(ph_df)
-   
-   future_prices = m.make_future_dataframe(periods=365)
-   
-   # Predict Prices
-   forecast = m.predict(future_prices)
-   forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail()
-   
-   # Dates
-   starting_date = dt.datetime(2018, 4, 7)
-   starting_date1 = mdates.date2num(starting_date)
-   trend_date = dt.datetime(2018, 2, 7)
-   trend_date1 = mdates.date2num(trend_date)
-   
-   pointing_arrow = dt.datetime(2018, 2, 18)
-   pointing_arrow1 = mdates.date2num(pointing_arrow)
-   
-   # Dates Forecasting Resistance Line
-   resistance_date = dt.datetime(2016, 4, 7)
-   resistance_date1 = mdates.date2num(resistance_date)
-   
-   # Dates Forecasting Support Line
-   support_date = dt.datetime(2013, 4, 7)
-   support_date1 = mdates.date2num(support_date)
-   
-   # Learn more Prophet tomorrow and plot the forecast for amazon.
-   fig = m.plot(forecast)
-   ax1 = fig.add_subplot(111)
-   ax1.set_title("American Airlines Stock Price Forecast", fontsize=16)
-   ax1.set_xlabel("Date", fontsize=12)
-   ax1.set_ylabel("Close Price", fontsize=12)
-   
-   # Forecast initialization arrow
-   ax1.annotate('Forecast \n Initialization', xy=(pointing_arrow1, 55), xytext=(starting_date1,40),
-               arrowprops=dict(facecolor='#ff7f50', shrink=0.1),
-               )
-   
-   # # Trend emphasis arrow
-   ax1.annotate('Last Closing Price \n Before Forecast \n ($51.40)', xy=(trend_date1, 57), xytext=(trend_date1,70),
-               arrowprops=dict(facecolor='#6cff6c', shrink=0.1),
-               )
-   
-   # Resistance Line
-   ax1.annotate('Resistance Line \n of Forecast Peak ${:.2f}'.format(forecast["yhat"].max()), xy=(resistance_date1, 65), xytext=(resistance_date1,73),
-               arrowprops=dict(facecolor='#FF0000', shrink=0.1),
-               )
-   
-   # Support Line
-   ax1.annotate('Support Line \n of Forecast Bottom \n $51.40', xy=(support_date1, 53), xytext=(support_date1,40),
-               arrowprops=dict(facecolor='#00FF40', shrink=0.1),
-               )
-   
-   ax1.axhline(y=65, color='r', linestyle='--')
-   ax1.axhline(y=54.2, color='g', linestyle='--')
-   
-   plt.show()
-   
-   fig2 = m.plot_components(forecast)
    plt.show()
    
 #####END PROPHET
 
 stockdata = preprocessdata()
 #print ("DEBUG: stockdata size:", stockdata.shape[0])
-runLSTM("AMZN", stockdata, 30)
+#runLSTM("AMZN", stockdata, 30)
 runprophet(stockdata, "AMZN")
