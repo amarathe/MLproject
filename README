@@ -12,3 +12,7 @@ References:
 		https://www.kaggle.com/hakkisimsek/plotly-tutorial-3
 	LSTM:
 		https://www.datacamp.com/community/tutorials/lstm-python-stock-market
+	Prophet:
+		https://www.kaggle.com/janiobachmann/s-p-500-simple-forecasting-with-prophet
+	Prophet quick start:
+		https://facebook.github.io/prophet/docs/quick_start.html
